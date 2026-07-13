@@ -15,8 +15,10 @@ resolveId(id: string)  {
   }
 }
 
+const isProd = process.env.NODE_ENV === 'production'
+
 export default defineConfig({
-  base: '/planner-app/', // 👈 Add this line
+  base: isProd ? '/planner-app/' : '/',
 
   plugins: [
     figmaAssetResolver(),
