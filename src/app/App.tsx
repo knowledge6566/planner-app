@@ -1745,10 +1745,10 @@ function Pill({ label, active, onClick }: { label: string; active?: boolean; onC
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-full border text-sm font-medium transition-all ${
+      className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-all pointer-events-auto flex-shrink-0 whitespace-nowrap ${
         active
-          ? "bg-purple-600 text-white border-purple-600"
-          : "bg-white text-gray-800 border-gray-300 hover:border-purple-400"
+          ? "bg-purple-600 text-white shadow-sm"
+          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
       }`}
     >
       {label}
@@ -2052,7 +2052,7 @@ function RecipeDetailScreen({
         style={{ background: `linear-gradient(135deg, ${recipe.color}33, ${recipe.color}66)` }}
       >
         {recipe.image ? (
-          <ImageWithFallback src={recipe.image} alt={recipe.name} className="absolute inset-0 w-full h-full object-cover" />
+          <ImageWithFallback src={recipe.image} alt={recipe.name} className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" draggable={false} />
         ) : (
           <span className="text-7xl">{recipe.emoji}</span>
         )}
@@ -2185,14 +2185,17 @@ function MealPlanScreen({
   onAddMeal,
   onRemoveMeal,
   onViewRecipe,
+  selectedDay,
+  setSelectedDay,
 }: {
   weekPlan: DayPlan[];
   recipes: Recipe[];
   onAddMeal: (dayIndex: number, mealType: MealType) => void;
   onRemoveMeal: (dayIndex: number, mealType: MealType) => void;
   onViewRecipe: (recipeId: string, people: number) => void;
+  selectedDay: number;
+  setSelectedDay: (day: number) => void;
 }) {
-  const [selectedDay, setSelectedDay] = useState(0);
   const dayPlan = weekPlan[selectedDay];
 
   return (
@@ -2318,7 +2321,7 @@ function AddMealModal({
 }) {
   const [search, setSearch] = useState("");
   const [people, setPeople] = useState(2);
-  const [selectedFilter, setSelectedFilter] = useState<string>("All");
+  const [selectedFilter, setSelectedFilter] = useState<string>(MEAL_LABELS[mealType]);
 
   const filters = ["All", "Breakfast", "Lunch", "Dinner", ...CUISINES];
 
@@ -2330,8 +2333,8 @@ function AddMealModal({
   });
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end">
-      <div className="bg-white rounded-t-3xl w-full max-h-[85vh] flex flex-col">
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end rounded-[2.5rem] overflow-hidden">
+      <div className="bg-white w-full max-h-[85vh] flex flex-col rounded-t-3xl">
         {/* Modal header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-xl font-bold text-gray-900">Add {MEAL_LABELS[mealType]}</h2>
@@ -2378,7 +2381,7 @@ function AddMealModal({
         </div>
 
         {/* Filters */}
-        <div className="px-5 mb-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="px-5 mb-4 flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide pointer-events-auto">
           {filters.map((f) => (
             <Pill key={f} label={f} active={selectedFilter === f} onClick={() => setSelectedFilter(f)} />
           ))}
@@ -2874,6 +2877,15 @@ type AppView =
 export default function App() {
   const [view, setView] = useState<AppView>({ type: "tab", tab: "today" });
   const [customRecipes, setCustomRecipes] = useState<Recipe[]>([]);
+  const [selectedDay, setSelectedDay] = useState(0);
+  
+  // Get today's day index (0 = Monday, 1 = Tuesday, ..., 6 = Sunday)
+  const todayIndex = useMemo(() => {
+    const today = new Date().getDay();
+    // Convert JS day (0=Sunday) to app day (0=Monday)
+    return today === 0 ? 6 : today - 1;
+  }, []);
+  
   const recipes = useMemo(() => [...customRecipes, ...RECIPES], [customRecipes]);
   const [recipeFilter, setRecipeFilter] = useState<string>("All");
   const [weekPlan, setWeekPlan] = useState<DayPlan[]>(() =>
@@ -2919,6 +2931,7 @@ export default function App() {
       next[dayIndex] = { ...next[dayIndex], [mealType]: { recipeId, people } };
       return next;
     });
+    setSelectedDay(dayIndex);
     setView({ type: "tab", tab: "plan" });
   };
 
@@ -2971,7 +2984,7 @@ export default function App() {
         {/* Main scrollable content */}
         <div className="flex-1 overflow-y-auto">
           {view.type === "tab" && view.tab === "today" && (
-            <TodayScreen todayPlan={weekPlan[0]} recipes={recipes} onViewRecipe={handleViewRecipe} />
+            <TodayScreen todayPlan={weekPlan[todayIndex]} recipes={recipes} onViewRecipe={handleViewRecipe} />
           )}
           {view.type === "tab" && view.tab === "plan" && (
             <MealPlanScreen
@@ -2980,6 +2993,8 @@ export default function App() {
               onAddMeal={handleAddMeal}
               onRemoveMeal={handleRemoveMeal}
               onViewRecipe={handleViewRecipe}
+              selectedDay={selectedDay}
+              setSelectedDay={setSelectedDay}
             />
           )}
           {view.type === "tab" && view.tab === "grocery" && (
@@ -3038,7 +3053,7 @@ export default function App() {
         </div>
 
         {/* Bottom nav */}
-        {view.type !== "recipe" && view.type !== "createRecipe" && (
+        {view.type !== "recipe" && view.type !== "createRecipe" && view.type !== "addMeal" && (
           <div className="flex-shrink-0 bg-white border-t border-gray-100 flex pb-safe">
             {NAV_ITEMS.map((item) => (
               <button
@@ -3057,17 +3072,17 @@ export default function App() {
             ))}
           </div>
         )}
-      </div>
 
-      {/* Add Meal Modal */}
-      {view.type === "addMeal" && (
-        <AddMealModal
-          mealType={view.mealType}
-          recipes={recipes}
-          onSelect={handleMealSelected}
-          onClose={() => setView({ type: "tab", tab: "plan" })}
-        />
-      )}
+        {/* Add Meal Modal */}
+        {view.type === "addMeal" && (
+          <AddMealModal
+            mealType={view.mealType}
+            recipes={recipes}
+            onSelect={handleMealSelected}
+            onClose={() => setView({ type: "tab", tab: "plan" })}
+          />
+        )}
+      </div>
     </div>
   );
 }
